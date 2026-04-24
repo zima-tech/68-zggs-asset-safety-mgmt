@@ -1,0 +1,127 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model WorkItem {
+  id          String         @id @default(cuid())
+  code        String         @unique
+  title       String
+  category    String
+  status      String
+  priority    String
+  riskLevel   String
+  owner       String
+  description String
+  source      String?
+  sourceType  String
+  sourceTitle String
+  sourceBatch String
+  dueDate     DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  events      ProcessEvent[]
+}
+
+model ProcessEvent {
+  id          String   @id @default(cuid())
+  itemId      String
+  sourceType  String
+  sourceTitle String
+  action      String
+  actor       String
+  content     String
+  createdAt   DateTime @default(now())
+  item        WorkItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+}
+
+model Insight {
+  id        String   @id @default(cuid())
+  title     String
+  value     String
+  trend     String
+  level     String
+  createdAt DateTime @default(now())
+}
+
+model IntegrationLog {
+  id        String   @id @default(cuid())
+  service   String
+  status    String
+  batch     String
+  quality   String
+  detail    String
+  createdAt DateTime @default(now())
+}
+
+model AiDraft {
+  id                 String   @id @default(cuid())
+  conversationId     String
+  turnIndex          Int      @default(0)
+  topic              String
+  prompt             String
+  result             String
+  status             String
+  resultType         String
+  sourceSummary      String
+  businessObjectId   String
+  businessObjectType String
+  businessObjectTitle String
+  sourceMode         String
+  saveStatus         String
+  saveSummary        String?
+  savedAt            DateTime?
+  createdAt          DateTime @default(now())
+
+  @@index([conversationId, createdAt])
+  @@index([businessObjectId, createdAt])
+}
+
+model SystemUser {
+  id          String    @id @default(cuid())
+  username    String    @unique
+  displayName String
+  department  String
+  role        String
+  status      String
+  lastLoginAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  module     String
+  action     String
+  targetType String
+  targetName String
+  result     String
+  actor      String
+  summary    String
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([module, createdAt])
+  @@index([actor, createdAt])
+}
+
+model SystemSetting {
+  id          String   @id @default(cuid())
+  group       String
+  key         String   @unique
+  label       String
+  value       String
+  valueType   String
+  enabled     Boolean  @default(true)
+  description String
+  updatedBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([group, enabled])
+}
