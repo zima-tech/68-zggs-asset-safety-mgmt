@@ -33,6 +33,14 @@ function ensureVercelWritableDatabase(sourcePath: string) {
   const runtimeDir = path.join("/tmp", path.basename(process.cwd()), "prisma");
   const runtimePath = path.join(runtimeDir, path.basename(sourcePath));
 
+  if (fs.existsSync(runtimePath)) {
+    return runtimePath;
+  }
+
+  if (!fs.existsSync(sourcePath)) {
+    return sourcePath;
+  }
+
   if (!fs.existsSync(runtimePath)) {
     fs.mkdirSync(runtimeDir, { recursive: true });
     fs.copyFileSync(sourcePath, runtimePath);
