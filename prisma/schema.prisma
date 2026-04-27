@@ -84,6 +84,7 @@ model AiDraft {
 model SystemUser {
   id          String    @id @default(cuid())
   username    String    @unique
+  passwordHash String   @default("")
   displayName String
   department  String
   role        String

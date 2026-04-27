@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import { appMeta, seedInsights, seedRecords } from "../lib/domain";
 import { getMockIntegrationHealth } from "../lib/mock-integrations";
+import { buildInitialPasswordHash } from "../lib/password";
 
 const prisma = new PrismaClient();
 
@@ -8,6 +9,7 @@ function governanceUsers(now: Date) {
   return [
     {
       username: "admin",
+      passwordHash: buildInitialPasswordHash("admin"),
       displayName: "演示管理员",
       department: appMeta.department,
       role: "系统管理员",
@@ -16,6 +18,7 @@ function governanceUsers(now: Date) {
     },
     {
       username: `${appMeta.seq}-manager`,
+      passwordHash: buildInitialPasswordHash(`${appMeta.seq}-manager`),
       displayName: `${appMeta.shortName}负责人`,
       department: appMeta.department,
       role: "业务负责人",
@@ -24,6 +27,7 @@ function governanceUsers(now: Date) {
     },
     {
       username: `${appMeta.seq}-auditor`,
+      passwordHash: buildInitialPasswordHash(`${appMeta.seq}-auditor`),
       displayName: "审计复核岗",
       department: appMeta.department,
       role: "审计员",

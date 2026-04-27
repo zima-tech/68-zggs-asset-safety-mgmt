@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { signInDemo, signOutDemo } from "@/lib/auth";
 import { appMeta } from "@/lib/domain";
+import { buildInitialPasswordHash } from "@/lib/password";
 import { runGlmAssistant } from "@/lib/ai/glm";
 import { getDashboardSnapshot } from "@/lib/service";
 import type { DemoLoginInput, DemoLoginResult } from "@/lib/demo-auth-config";
@@ -46,17 +47,17 @@ async function recordAuditLog(input: AuditInput) {
 }
 
 export async function loginDemoAccount(input: DemoLoginInput): Promise<DemoLoginResult> {
-  const ok = await signInDemo(input);
-  if (!ok) {
-    return { ok: false, message: "用户名或密码错误" };
+  const result = await signInDemo(input);
+  if (!result.ok) {
+    return { ok: false, message: result.message ?? "用户名或密码错误" };
   }
   await recordAuditLog({
     module: "登录",
     action: "账号登录",
     targetType: "管理后台",
     targetName: appMeta.shortName,
-    actor: input.username,
-    summary: `${input.username} 登录${appMeta.shortName}。`,
+    actor: result.username ?? input.username.trim(),
+    summary: `${result.username ?? input.username.trim()} 登录${appMeta.shortName}。`,
   });
   revalidatePath("/");
   return { ok: true };
@@ -327,9 +328,11 @@ export async function saveAiDraft(input: SaveAiDraftInput) {
 }
 
 export async function createSystemUser(input: SystemUserInput) {
+  const username = input.username.trim();
   const user = await prisma.systemUser.create({
     data: {
-      username: input.username.trim(),
+      username,
+      passwordHash: buildInitialPasswordHash(username),
       displayName: input.displayName.trim(),
       department: input.department.trim(),
       role: input.role,
@@ -342,7 +345,7 @@ export async function createSystemUser(input: SystemUserInput) {
     action: "新增用户",
     targetType: "管理用户",
     targetName: user.displayName,
-    summary: `${user.displayName}已加入${user.department}，角色为${user.role}。`,
+    summary: `${user.displayName}已加入${user.department}，角色为${user.role}，初始密码已按账号规则生成。`,
   });
   revalidatePath("/users");
   return getDashboardSnapshot();
@@ -380,6 +383,25 @@ export async function toggleSystemUserStatus(id: string) {
     targetType: "管理用户",
     targetName: next.displayName,
     summary: `${next.displayName}账号状态已调整为${status}。`,
+  });
+  revalidatePath("/users");
+  return getDashboardSnapshot();
+}
+
+export async function resetSystemUserPassword(id: string) {
+  const user = await prisma.systemUser.findUniqueOrThrow({ where: { id } });
+  await prisma.systemUser.update({
+    where: { id },
+    data: {
+      passwordHash: buildInitialPasswordHash(user.username),
+    },
+  });
+  await recordAuditLog({
+    module: "用户管理",
+    action: "重置密码",
+    targetType: "管理用户",
+    targetName: user.displayName,
+    summary: `${user.displayName}的登录密码已重置为账号默认规则。`,
   });
   revalidatePath("/users");
   return getDashboardSnapshot();

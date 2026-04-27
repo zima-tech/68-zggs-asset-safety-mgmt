@@ -5,6 +5,8 @@ export const DEMO_CREDENTIALS = {
   role: "系统管理员",
 } as const;
 
+export const DEFAULT_PASSWORD_SUFFIX = "123";
+export const DEFAULT_PASSWORD_RULE_TEXT = "登录账号 + 123";
 export const DEMO_AUTH_COOKIE = "demo_auth";
 export const DEMO_AUTH_COOKIE_VALUE = "authenticated";
 
@@ -16,8 +18,10 @@ export type DemoLoginInput = {
 export type DemoLoginResult = {
   ok: boolean;
   message?: string;
+  username?: string;
+  displayName?: string;
 };
 
-export function validateDemoCredentials(input: DemoLoginInput) {
-  return input.username === DEMO_CREDENTIALS.username && input.password === DEMO_CREDENTIALS.password;
+export function buildDefaultPassword(username: string) {
+  return `${username.trim()}${DEFAULT_PASSWORD_SUFFIX}`;
 }

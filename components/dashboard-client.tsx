@@ -7,10 +7,13 @@ import {
   ExclamationCircleOutlined,
   FileAddOutlined,
   ForwardOutlined,
+  InfoCircleOutlined,
+  KeyOutlined,
   PlusOutlined,
   ReloadOutlined,
 } from "@ant-design/icons";
 import {
+  Alert,
   App,
   Button,
   Card,
@@ -28,6 +31,7 @@ import {
   Table,
   Tag,
   Timeline,
+  Tooltip,
   Typography,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
@@ -37,6 +41,7 @@ import {
   createSystemUser,
   createWorkItem,
   deleteWorkItem,
+  resetSystemUserPassword,
   toggleSystemSetting,
   toggleSystemUserStatus,
   updateSystemSetting,
@@ -52,6 +57,7 @@ import {
   getWorkspaceView,
   seedInsights,
 } from "@/lib/domain";
+import { buildDefaultPassword, DEFAULT_PASSWORD_RULE_TEXT } from "@/lib/demo-auth-config";
 import { advanceFeedback, createFeedback, deleteFeedback } from "@/lib/feedback";
 import type {
   AnalysisTable,
@@ -158,6 +164,7 @@ export function DashboardClient({
   const [settingModalOpen, setSettingModalOpen] = useState(false);
   const [editingSetting, setEditingSetting] = useState<SystemSettingView | null>(null);
   const [selectedLog, setSelectedLog] = useState<AuditLogView | null>(null);
+  const [latestUserPasswordHint, setLatestUserPasswordHint] = useState<{ username: string; password: string } | null>(null);
   const [logKeyword, setLogKeyword] = useState("");
   const [logModule, setLogModule] = useState<string | undefined>();
   const [settingGroup, setSettingGroup] = useState<string | undefined>();
@@ -287,6 +294,7 @@ export function DashboardClient({
 
   function openCreateUser() {
     setEditingUser(null);
+    setLatestUserPasswordHint(null);
     userForm.setFieldsValue({
       username: "",
       displayName: "",
@@ -299,6 +307,7 @@ export function DashboardClient({
 
   function openEditUser(user: SystemUserView) {
     setEditingUser(user);
+    setLatestUserPasswordHint(null);
     userForm.setFieldsValue({
       username: user.username,
       displayName: user.displayName,
@@ -311,7 +320,14 @@ export function DashboardClient({
 
   function handleUserSubmit(values: SystemUserInput) {
     const action = editingUser ? updateSystemUser(editingUser.id, values) : createSystemUser(values);
-    refreshWith(action, editingUser ? "用户信息已更新" : "用户已新增", () => {
+    const successText = editingUser ? "用户信息已更新" : `用户已新增，初始密码为 ${buildDefaultPassword(values.username)}`;
+    refreshWith(action, successText, () => {
+      if (!editingUser) {
+        setLatestUserPasswordHint({
+          username: values.username.trim(),
+          password: buildDefaultPassword(values.username),
+        });
+      }
       setUserModalOpen(false);
       setEditingUser(null);
       userForm.resetFields();
@@ -326,6 +342,18 @@ export function DashboardClient({
       okText: "确认",
       cancelText: "取消",
       onOk: () => refreshWith(toggleSystemUserStatus(user.id), "用户状态已更新"),
+    });
+  }
+
+  function handleResetUserPassword(user: SystemUserView) {
+    const resetPassword = buildDefaultPassword(user.username);
+    modal.confirm({
+      title: "确认重置该用户密码？",
+      icon: <ExclamationCircleOutlined />,
+      content: `${user.displayName}（${user.username}）的密码将重置为 ${resetPassword}。`,
+      okText: "确认重置",
+      cancelText: "取消",
+      onOk: () => refreshWith(resetSystemUserPassword(user.id), `密码已重置为 ${resetPassword}`),
     });
   }
 
@@ -548,11 +576,14 @@ export function DashboardClient({
       {
         title: "操作",
         key: "action",
-        width: 180,
+        width: 260,
         render: (_, record) => (
           <Space>
             <Button size="small" icon={<EditOutlined />} onClick={() => openEditUser(record)}>
               编辑
+            </Button>
+            <Button size="small" icon={<KeyOutlined />} onClick={() => handleResetUserPassword(record)}>
+              重置密码
             </Button>
             <Button size="small" danger={record.status === "启用"} onClick={() => handleToggleUser(record)}>
               {record.status === "启用" ? "停用" : "启用"}
@@ -567,11 +598,39 @@ export function DashboardClient({
         <Card
           title="用户管理"
           extra={
-            <Button type="primary" icon={<PlusOutlined />} onClick={openCreateUser}>
-              新增用户
-            </Button>
+            <Space size={12}>
+              <Tooltip title={`新建用户后，系统会自动设置初始密码为“${DEFAULT_PASSWORD_RULE_TEXT}”。`}>
+                <Typography.Text type="secondary">
+                  <InfoCircleOutlined /> 初始密码说明
+                </Typography.Text>
+              </Tooltip>
+              <Button type="primary" icon={<PlusOutlined />} onClick={openCreateUser}>
+                新增用户
+              </Button>
+            </Space>
           }
         >
+          {latestUserPasswordHint ? (
+            <Alert
+              type="success"
+              showIcon
+              closable
+              onClose={() => setLatestUserPasswordHint(null)}
+              message={`已创建账号 ${latestUserPasswordHint.username}`}
+              description={
+                <Space size={10} wrap>
+                  <Typography.Text>
+                    初始密码：<Typography.Text code>{latestUserPasswordHint.password}</Typography.Text>
+                  </Typography.Text>
+                  <Tooltip title={`统一规则：${DEFAULT_PASSWORD_RULE_TEXT}`}>
+                    <Typography.Text type="secondary">
+                      <InfoCircleOutlined /> 查看密码规则
+                    </Typography.Text>
+                  </Tooltip>
+                </Space>
+              }
+            />
+          ) : null}
           <Table
             rowKey="id"
             loading={pending}

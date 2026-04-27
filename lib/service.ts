@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { appMeta, seedInsights, seedRecords } from "@/lib/domain";
 import { getMockIntegrationHealth } from "@/lib/mock-integrations";
+import { buildInitialPasswordHash } from "@/lib/password";
 import type { AiConversationView, DashboardSnapshot } from "@/lib/types";
 
 function toIso(value: Date | null) {
@@ -57,6 +58,7 @@ function governanceUsers(now: Date) {
   return [
     {
       username: "admin",
+      passwordHash: buildInitialPasswordHash("admin"),
       displayName: "演示管理员",
       department: appMeta.department,
       role: "系统管理员",
@@ -65,6 +67,7 @@ function governanceUsers(now: Date) {
     },
     {
       username: `${appMeta.seq}-manager`,
+      passwordHash: buildInitialPasswordHash(`${appMeta.seq}-manager`),
       displayName: `${appMeta.shortName}负责人`,
       department: appMeta.department,
       role: "业务负责人",
@@ -73,6 +76,7 @@ function governanceUsers(now: Date) {
     },
     {
       username: `${appMeta.seq}-auditor`,
+      passwordHash: buildInitialPasswordHash(`${appMeta.seq}-auditor`),
       displayName: "审计复核岗",
       department: appMeta.department,
       role: "审计员",
@@ -152,6 +156,22 @@ async function ensureGovernanceData() {
 
   if (userCount === 0) {
     await prisma.systemUser.createMany({ data: governanceUsers(now) });
+  } else {
+    const usersWithoutPassword = await prisma.systemUser.findMany({
+      where: { passwordHash: "" },
+      select: { id: true, username: true },
+    });
+
+    if (usersWithoutPassword.length) {
+      await prisma.$transaction(
+        usersWithoutPassword.map((user) =>
+          prisma.systemUser.update({
+            where: { id: user.id },
+            data: { passwordHash: buildInitialPasswordHash(user.username) },
+          }),
+        ),
+      );
+    }
   }
   if (settingCount === 0) {
     await prisma.systemSetting.createMany({ data: governanceSettings() });
@@ -301,7 +321,12 @@ export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
     aiDrafts: aiDraftViews,
     aiConversations: Array.from(conversationAccumulator.values()).sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
     systemUsers: systemUsers.map((user) => ({
-      ...user,
+      id: user.id,
+      username: user.username,
+      displayName: user.displayName,
+      department: user.department,
+      role: user.role,
+      status: user.status,
       lastLoginAt: toIso(user.lastLoginAt),
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString(),
